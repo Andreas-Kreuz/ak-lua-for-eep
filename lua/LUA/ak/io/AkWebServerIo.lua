@@ -76,7 +76,7 @@ function AkWebServerIo.setOutputDirectory(dirName)
     watchFileNameLua = ioDirectoryName .. "/ak-eep-out-json.isfinished"
     -- Delete the file during initialization to trigger the creation of the json file once
     --assert(os.remove(watchFileNameLua))
-    -- Howe ver, this is not possible because within EEP, the library os contains only the following functions:
+    -- However, this is not possible because within EEP, the library os contains only the following functions:
     -- setlocale date time difftime clock getenv tmpname
     -- EEP reads commands from this file
     local inFileNameCommands = ioDirectoryName .. "/ak-eep-in.commands"

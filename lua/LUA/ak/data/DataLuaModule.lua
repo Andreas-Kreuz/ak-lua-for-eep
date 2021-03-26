@@ -7,10 +7,6 @@ local initialized = false
 -- Jedes Modul hat einen eindeutigen Namen
 DataLuaModule.name = "ak.data.DataLuaModule"
 
--- List of collectors which should be active (default = all)
--- Example: { ["ak.core.VersionJsonCollector"] = true, ["ak.data.TrainsAndTracksJsonCollector"] = true, }
-local activeCollectors = {}
-
 --- Diese Funktion wird einmalig durch ModuleRegistry.initTasks() aufgerufen
 -- Ist ein Modul für EEPWeb vorhanden, dann solltes in dieser Funktion aufgerufen werden
 -- @author Andreas Kreuz
@@ -21,7 +17,7 @@ function DataLuaModule.init()
 
     -- Hier wird der DataWebConnector registriert, so dass die Kommunikation mit der WebApp funktioniert
     local DataWebConnector = require("ak.data.DataWebConnector")
-    DataWebConnector.registerJsonCollectors(activeCollectors)
+    DataWebConnector.registerJsonCollectors()
 
     initialized = true
 end
@@ -37,16 +33,4 @@ function DataLuaModule.run()
     -- Das CoreModul hat keine wiederkehrenden Funktionen
 end
 
---- Über diese Funktion kann das EEP Skript die Optionen des Moduls setzen
--- @author Frank Buchholz
--- @options List of options { activeCollectors = array of jsonCollector names, }
-function DataLuaModule.setOptions(options)
-    if options.activeCollectors then
-        local collectorsList = {}
-        for _, value in pairs(options.activeCollectors) do
-            collectorsList[value] = true
-        end
-        activeCollectors = collectorsList
-    end
-end
 return DataLuaModule

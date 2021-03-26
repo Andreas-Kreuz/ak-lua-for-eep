@@ -2,6 +2,11 @@ if AkDebugLoad then print("Loading ak.data.TrackCollector ...") end
 local TrackCollector = {}
 local os = require("os")
 
+local ServerController = require("ak.io.ServerController")
+local debug = ServerController.debug
+
+function tableLength(t) local i = 0 for _ in pairs(t) do i = i + 1 end return i end
+
 local MAX_TRACKS = 50000
 
 local registerFunction = {
@@ -237,12 +242,20 @@ function TrackCollector:updateTrains()
     runtimeData = {}
     local t0 = os.clock()
 
-    -- Remove missing trains
+    -- Remove missing trains, i.e. which have been removed by coupling events or by entering a train yard
     for trainName, train in pairs(self.trains) do
         local haveSpeed, speed = EEPGetTrainSpeed(trainName) -- EEP 11.0
         if haveSpeed then
-            train.speed = speed
+            -- update speed of train
+            train.speed = tonumber(string.format("%.4f", speed or 0))
+
+            -- reset set of occupied tracks
+            self.trainInfo[trainName].occupiedTacks = {}
         else
+            if debug and self.trains[trainName] then
+                print(string.format("TrackCollector %s - Remove train: %s (%d trains remaining)",
+                    self.trackType, trainName, tableLength(self.trains) - 1 ))
+            end
             self.trains[trainName] = nil
             self.trainInfo[trainName] = nil
         end
@@ -251,8 +264,9 @@ function TrackCollector:updateTrains()
     local t1 = os.clock()
     storeRunTime(self.trackType .. "-trainTime (remove)", t1 - t0)
 
-    -- Update the trains, if they are dirty not yet in the list
+    -- Update the trains, if they are dirty or not yet in the list
     local movedTrains = {}
+
     for _, track in pairs(self.tracks) do
         local trackId = track.id
         -- Limitation: only the first train on a track is found
@@ -262,6 +276,7 @@ function TrackCollector:updateTrains()
                 if (not self.trains[trainName] or self.dirtyTrainNames[trainName]) then
                     self:updateTrain(trainName)
                     movedTrains[trainName] = true
+                    self.dirtyTrainNames[trainName] = nil
                 else
                     if self.trains[trainName].onTrack ~= trackId then
                         movedTrains[trainName] = true
@@ -272,16 +287,35 @@ function TrackCollector:updateTrains()
                 self:updateTrainInfo(trainName, trackId)
             end
         end
+    end
 
+    -- Process remaining dirty trains (happens rarly)
+    for trainName, onTrack in pairs(self.dirtyTrainNames) do
+        if not self.trains[trainName] then
+            local haveSpeed, speed = EEPGetTrainSpeed(trainName) -- EEP 11.0
+            if haveSpeed then
+                if debug then
+                    print(string.format("*Process dirty train %s onTrack %s", trainName, onTrack))
+                end
+                self:updateTrain(trainName)
+                self:updateTrainInfo(trainName, onTrack)
+                movedTrains[trainName] = true
+                self.dirtyTrainNames[trainName] = nil
+            end
+        end
     end
 
     local t2 = os.clock()
     storeRunTime(self.trackType .. "-trainTime", t2 - t1)
 
-    -- Update the rollingstock, if they are dirty not yet in the list
+    -- Update the rollingstock, if they are dirty or not yet in the list
     for rollingStockName, rollingStock in pairs(self.rollingStock) do
         -- Remove all rollingstock without a train
         if not self.trains[rollingStock.trainName] then
+            if debug and self.rollingStock[rollingStockName] then
+                print(string.format("TrackCollector %s - Remove rolling stock: %s (%d rolling stocks in total)",
+                    self.trackType, rollingStockName, tableLength(self.rollingStock) - 1 ))
+            end
             self.rollingStock[rollingStockName] = nil
             self.rollingStockInfo[rollingStockName] = nil
         end
@@ -291,21 +325,28 @@ function TrackCollector:updateTrains()
         end
     end
 
+    if debug and tableLength(self.dirtyTrainNames) > 0 then
+        print(string.format("TrackCollector %s - Clean %d dirty trains",
+            self.trackType, tableLength(self.dirtyTrainNames) ))
+    end
     self.dirtyTrainNames = {}
 
     local t3 = os.clock()
     storeRunTime(self.trackType .. "-rollingStockTime", t3 - t2)
-    -- print(
-    --     string.format(
-    --         "Track Collector %s took " ..
-    --             "\n    %.2f s remove old trains," .. "\n    %.2f s update trains"
-    --             .. "\n    %.2f s update rollingstock",
-    --         self.trackType,
-    --         t1 - t0,
-    --         t2 - t1,
-    --         t3 - t2
-    --     )
-    -- )
+    -- [[
+    if debug then
+        print(string.format(
+            "TrackCollector %s took"
+            .. "\n    %.2f s to remove old trains,"
+            .. "\n    %.2f s to update trains"
+            .. "\n    %.2f s to update rollingstock",
+            self.trackType,
+            t1 - t0,
+            t2 - t1,
+            t3 - t2
+        ))
+     end
+     --]]
 end
 
 function TrackCollector:updateTrain(trainName)
@@ -321,6 +362,12 @@ function TrackCollector:updateTrain(trainName)
         rollingStockCount = rollingStockCount or 0,
         length = tonumber(string.format("%.2f", trainLength or 0)),
     }
+
+    -- Save train
+    if debug and not self.trains[trainName] then
+        print(string.format("TrackCollector %s - Add train: %s (%d trains in total)",
+            self.trackType, trainName, tableLength(self.trains) + 1 ))
+    end
     self.trains[trainName] = currentTrain
 
     if rollingStockCount then
@@ -338,13 +385,21 @@ end
 function TrackCollector:updateTrainInfo(trainName, trackId)
     local _, speed = EEPGetTrainSpeed(trainName) -- EEP 11.0
     local trainInfo = self.trainInfo[trainName] or {}
+
+    -- update known trains
     trainInfo.id = trainName
     trainInfo.trackType = self.trackType
     trainInfo.speed = tonumber(string.format("%.4f", speed or 0))
     trainInfo.onTrack = trackId
     trainInfo.occupiedTacks = trainInfo.occupiedTacks or {}
     trainInfo.occupiedTacks[tostring(trackId)] = trackId
+
+    -- add new trains
     if not self.trainInfo[trainName] then
+        if debug then
+            print(string.format("TrackCollector %s - Add trainInfo: %s",
+                self.trackType, trainName))
+        end
         self.trainInfo[trainName] = trainInfo
     end
 end
@@ -372,8 +427,13 @@ function TrackCollector:updateRollingStock(rollingStockName, currentTrain, posit
         tag = tag or "",
     }
 
-    -- Save
+    -- Save rolling stock
+    if debug and not self.rollingStock[rollingStockName] then
+        print(string.format("TrackCollector %s - Add rolling stock: %s (%d rolling stocks in total)",
+            self.trackType, rollingStockName, tableLength(self.rollingStock) + 1 ))
+    end
     self.rollingStock[rollingStockName] = currentRollingStock
+
     return currentRollingStock
 end
 
@@ -416,33 +476,135 @@ function TrackCollector:update()
 end
 
 function TrackCollector:reactOnTrainChanges()
-    -- React to train changes from EEP
+    --[[ (Re)define functions EEPOnTrainCoupling, EEPOnTrainLooseCoupling, and EEPOnTrainExitTrainyard
+    to catch events from EEP which change the count and the names of trains.
+    Limitation: there is no event on entering a train yard.
+
+    As we have 5 trackTypes we end up with a chain of functions originating from 5 trackType instances.
+    Therefore, any event gets called 5 times - once for every trackType.
+
+    Caution: EEPMain gets called before EEPOnTrain-functions and testing if a track is occupied only retrieves
+	one of the trains on that track.
+    ->
+
+    In case of a coupling event it happens that a train and its rolling stocks get deleted in one
+    EEPMain call and then the rolling stocks get re-created in next EEPMain call.
+
+    In case of a decoupling event it could happen
+    a) that the new train is added before the event is processed (if EEPMain already picks up the new train) or
+    b) added in one of the next EEPMain calls when one of the trains moves to another track (which could take a while).
+    --]]
+
+    -- Store original function
     local _EEPOnTrainCoupling = EEPOnTrainCoupling or function() -- EEP 14 Plug-In 1
         end
+    -- React to train changes from EEP
     EEPOnTrainCoupling = function(trainA, trainB, trainNew)
-        -- Mark these trains as dirty, i.e. refresh their data
-        self.dirtyTrainNames[trainA] = true
-        self.dirtyTrainNames[trainB] = true
-        self.dirtyTrainNames[trainNew] = true
+        -- Mark these trains as dirty, i.e. refresh their data in next call of EEPMain
+
+        -- Optional check: On this trackType we should find trainA and trainB (as well as trainNew which is either
+		-- trainA or trainB) If this is not the case than this is not the correct trackType
+        local checkA   = self.trains[trainA]   and true or false
+        local checkB   = self.trains[trainB]   and true or false
+        local checkNew = self.trains[trainNew] and true or false
+        if not checkA and not checkB then
+            -- Call the original function if none of the trains in known for this trackType
+            return _EEPOnTrainCoupling(trainA, trainB, trainNew)
+        end
+
+        if debug then
+            print("EEPOnTrainCoupling ", self.trackType,
+                " trainA ",      trainA,   " ", ( checkA   and "ok" or 'missing' ), " ",
+				self.trainInfo[trainA]   and self.trainInfo[trainA].onTrack   or -1,
+                " trainB ",      trainB,   " ", ( checkB   and "ok" or 'missing' ), " ",
+				self.trainInfo[trainB]   and self.trainInfo[trainB].onTrack   or -2,
+                " -> trainNew ", trainNew, " ", ( checkNew and "ok" or 'new'     ), " ",
+				self.trainInfo[trainNew] and self.trainInfo[trainNew].onTrack or -3
+            )
+        end
+
+        local trackId =    self.trainInfo[trainA]   and self.trainInfo[trainA].onTrack
+                        or self.trainInfo[trainB]   and self.trainInfo[trainB].onTrack
+                        or self.trainInfo[trainNew] and self.trainInfo[trainNew].onTrack
+                        or -1
+
+        self.dirtyTrainNames[trainA]   = trackId
+        self.dirtyTrainNames[trainB]   = trackId
+        self.dirtyTrainNames[trainNew] = trackId
+
         -- Call the original function
         return _EEPOnTrainCoupling(trainA, trainB, trainNew)
     end
 
+
+    -- Store original function
     local _EEPOnTrainLooseCoupling = EEPOnTrainLooseCoupling or function() -- EEP 14 Plug-In 1
         end
-    EEPOnTrainLooseCoupling = function(trainA, trainB, trainNew)
+    -- React to train changes from EEP
+    EEPOnTrainLooseCoupling = function(trainOld, trainA, trainB)
         -- Mark these trains as dirty, i.e. refresh their data
-        self.dirtyTrainNames[trainA] = true
-        self.dirtyTrainNames[trainB] = true
-        self.dirtyTrainNames[trainNew] = true
+
+        -- Optional check: On this trackType we should find trainOld but not both trainA and trainB
+        -- If this is not the case than this is not the correct trackType
+        local checkOld = self.trains[trainOld] and true or false
+        local checkA   = self.trains[trainA]   and true or false
+        local checkB   = self.trains[trainB]   and true or false
+        if not checkOld then
+            -- Call the original function if the original trains in not known for this trackType
+            return _EEPOnTrainLooseCoupling(trainOld, trainA, trainB)
+        end
+
+        if debug then
+            print("EEPOnTrainLooseCoupling ", self.trackType,
+                " trainOld ",   trainOld, " ", ( checkOld and "ok"   or 'missing' ), " ",
+				self.trainInfo[trainOld] and self.trainInfo[trainOld].onTrack or -4,
+                " ->  trainA ", trainA,   " ", ( checkA   and "keep" or 'new'     ), " ",
+				self.trainInfo[trainA]   and self.trainInfo[trainA].onTrack   or -5,
+                " trainB ",     trainB,   " ", ( checkB   and "keep" or 'new'     ), " ",
+				self.trainInfo[trainB]   and self.trainInfo[trainB].onTrack   or -6
+            )
+        end
+
+        local trackId =    self.trainInfo[trainOld] and self.trainInfo[trainOld].onTrack
+                        or self.trainInfo[trainA]   and self.trainInfo[trainA].onTrack
+                        or self.trainInfo[trainB]   and self.trainInfo[trainB].onTrack
+                        or -1
+
+        self.dirtyTrainNames[trainOld] = trackId
+        self.dirtyTrainNames[trainA]   = trackId
+        self.dirtyTrainNames[trainB]   = trackId
+
         -- Call the original function
-        return _EEPOnTrainLooseCoupling(trainA, trainB, trainNew)
+        return _EEPOnTrainLooseCoupling(trainOld, trainA, trainB)
     end
 
+
+    -- Store original function
     local _EEPOnTrainExitTrainyard = EEPOnTrainExitTrainyard or function() -- EEP 14 Plug-In 1
         end
+    -- React to train changes from EEP
     EEPOnTrainExitTrainyard = function(depotId, trainName)
+        -- Mark this train as dirty, i.e. refresh its data
+
+        -- Optional check: On this trackType we should not find trainName
+        -- If this is not the case than this is not the correct trackType
+        local check    = self.trains[trainName] and true or false
+        if check then
+            -- Assertion failed
+            print(string.format("EEPOnTrainExitTrainyard %s - Exit depot %s: Train %s alrady exists",
+                self.trackType, depotId, trainName))
+        end
+
+        if debug then
+            print("EEPOnTrainExitTrainyard ", self.trackType,
+                " depotId ", depotId,
+                " trainName ", trainName
+            )
+        end
+
         self.dirtyTrainNames[trainName] = true
+
+        -- Call the original function
         return _EEPOnTrainExitTrainyard(depotId, trainName)
     end
 end

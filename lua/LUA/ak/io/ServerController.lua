@@ -28,7 +28,8 @@ function ServerController.useDlls(enableDlls)
         -- Important: Empty tables must not be packed as objects {}, but as lists []
         json.encode_empty_table_as_object(false)
     else
-        json = require("ak.io.json")
+        --json = require("ak.io.json")
+        json = require("ak.io.jsonEncode") -- ca 1/3 faster than json.lua in case of large results
     end
 end
 ServerController.useDlls(false)
@@ -50,6 +51,11 @@ local initialized = false
 function ServerController.addAcceptedRemoteFunction(fName, f) AkCommandExecutor.addAcceptedRemoteFunction(fName, f) end
 
 local function fillApiEntriesV1(orderedKeys)
+    -- Do we want to get it?
+    if next(ServerController.activeEntries) ~= nil and not ServerController.activeEntries["api-entries"] then
+        return
+    end
+
     collectedData["api-entries"] = {}
     checksum = checksum + 1
     local apiEntries = {}
@@ -85,7 +91,7 @@ local function collectFrom(jsonCollector, printFirstTime)
     local t1 = os.clock()
     local timeDiff = t1 - t0
     if ServerController.debug and (timeDiff > 0.01 or printFirstTime) then
-        print(string.format('ServerController:collectData() %4.0f ms for "%s"', timeDiff * 1000, jsonCollector.name))
+        print(string.format('ServerController: collectData() %4.0f ms for "%s"', timeDiff * 1000, jsonCollector.name))
     end
     return newData
 end
@@ -134,7 +140,8 @@ local function expandData()
     local orderedKeys = {}
     local exportData = {}
     for key, value in pairs(collectedData) do
-        if next(ServerController.activeEntries) == nil or ServerController.activeEntries[key] then -- empty list
+        if next(ServerController.activeEntries) == nil or ServerController.activeEntries[key] then
+            -- empty list or requested entry type
             exportData[key] = value
             table.insert(orderedKeys, key)
         end
@@ -154,7 +161,7 @@ local i = -1
 --- Main function of this module.
 -- Call this function in main loop of EEP.
 -- do it frequently
--- @param modulus Repetion frequency (1: every 200 ms, 5: every second, ...)
+-- @param modulus Repetion frequency (0: always, 1: every 200 ms, 5: every second, ...)
 function ServerController.communicateWithServer(modulus)
     -- default value for optional parameter
     if not modulus or type(modulus) ~= "number" then modulus = 5 end
@@ -181,7 +188,7 @@ function ServerController.communicateWithServer(modulus)
     local overallTime5 = overallTime3
     local overallTime6 = overallTime3
 
-    if i % modulus == 0 and serverIsReady then
+    if modulus == 0 or i % modulus == 0 and serverIsReady then
         collectData(printFirstTime, modulus)
         overallTime4 = os.clock()
 

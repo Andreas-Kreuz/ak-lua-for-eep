@@ -50,6 +50,11 @@ local initialized = false
 function ServerController.addAcceptedRemoteFunction(fName, f) AkCommandExecutor.addAcceptedRemoteFunction(fName, f) end
 
 local function fillApiEntriesV1(orderedKeys)
+    -- Do we want to get it?
+    if next(ServerController.activeEntries) ~= nil and not ServerController.activeEntries["api-entries"] then
+        return
+    end
+
     collectedData["api-entries"] = {}
     checksum = checksum + 1
     local apiEntries = {}

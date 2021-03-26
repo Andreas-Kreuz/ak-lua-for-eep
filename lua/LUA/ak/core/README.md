@@ -55,76 +55,71 @@ local modules = ModuleRegistry.registerModules(
     require("ak.data.DataLuaModule")
 )
 
--- Optional: Set options of CoreLuaModule
+-- Optional: Set options
 modules["ak.core.CoreLuaModule"].setOptions({
-    waitForServer = false, -- false: Allow to update the json file without checking if the Web Server is ready
+    debug             = false,     -- Show additional debug information
+    waitForServer     = false,     -- if false: Allow to update the json file without checking if the Web Server is ready
 })
 
--- Optional: Set options of DataLuaModule
-modules["ak.data.DataLuaModule"].setOptions({
-    activeCollectors = { --register JsonCollectors (default = all)
-        --  "ak.data.DataSlotsJsonCollector",
-        --  "ak.data.SignalJsonCollector",
-        --  "ak.data.SwitchJsonCollector",
-        --  "ak.data.StructureJsonCollector",
-        --  "ak.data.TimeJsonCollector",
-          "ak.data.TrainsAndTracksJsonCollector",
-    },
-})
-
--- Optional: Set more options of CoreLuaModule
+-- Optional: Set filter for data collector
 modules["ak.core.CoreLuaModule"].setOptions({
     activeEntries = { -- Choose entries which get exported to file (default = empty list = all)
+        -- You only need to provide these entries which you want to change
         -- Collector: common
-        --  "api-entries",
+        ["api-entries"]                             = false,
 
         -- Collector: "ak.data.TimeJsonCollector",
-        --  "times",
+        ["times"]                                   = false,
 
         -- Collector: "ak.core.VersionJsonCollector",
-        --  "eep-version",
+        ["eep-version"]                             = false,
 
-        -- Collector: "ak.data.TrainsAndTracksJsonCollector",
-        --  "rail-tracks",
-          "rail-trains",
-          "rail-train-infos-dynamic",
-          "rail-rolling-stocks",
-          "rail-rolling-stock-infos-dynamic",
-        --  "tram-tracks",
-        --  "tram-trains",
-        --  "tram-train-infos-dynamic",
-        --  "tram-rolling-stocks",
-        --  "tram-rolling-stock-infos-dynamic",
-        --  "road-tracks",
-        --  "road-trains",
-        --  "road-train-infos-dynamic",
-        --  "road-rolling-stocks",
-        --  "road-rolling-stock-infos-dynamic",
-        --  "auxiliary-tracks",
-        --  "control-tracks",
-        --  "auxiliary-trains",
-        --  "auxiliary-train-infos-dynamic",
-        --  "auxiliary-rolling-stocks",
-        --  "auxiliary-rolling-stock-infos-dynamic",
-        --  "control-trains",
-        --  "control-train-infos-dynamic",
-        --  "control-rolling-stocks",
-        --  "control-rolling-stock-infos-dynamic",
-        --  "runtime",
+        -- Collector: "ak.data.TrainsAndTracksJsonCollector"
+        ["rail-tracks"]                             = false,
+        ["rail-trains"]                             = true,
+        ["rail-train-infos-dynamic"]                = true,
+        ["rail-rolling-stocks"]                     = true,
+        ["rail-rolling-stock-infos-dynamic"]        = true,
+        
+        ["tram-tracks"]                             = false,
+        ["tram-trains"]                             = true,
+        ["tram-train-infos-dynamic"]                = true,
+        ["tram-rolling-stocks"]                     = true,
+        ["tram-rolling-stock-infos-dynamic"]        = true,
 
-        -- Collector: "ak.data.SwitchJsonCollector",
-        --  "switches",
+        ["road-tracks"]                             = false,
+        ["road-trains"]                             = true,
+        ["road-train-infos-dynamic"]                = true,
+        ["road-rolling-stocks"]                     = true,
+        ["road-rolling-stock-infos-dynamic"]        = true,
 
-        -- Collector: "ak.data.SignalJsonCollector",
-        --  "signals",
-        --  "waiting-on-signals",
+        ["auxiliary-tracks"]                        = false,
+        ["auxiliary-trains"]                        = true,
+        ["auxiliary-train-infos-dynamic"]           = true,
+        ["auxiliary-rolling-stocks"]                = true,
+        ["auxiliary-rolling-stock-infos-dynamic"]   = true,
 
-        -- Collector: "ak.data.StructureJsonCollector",
-        --  "structures",
+        ["control-tracks"]                          = false,
+        ["control-trains"]                          = false,
+        ["control-train-infos-dynamic"]             = false,
+        ["control-rolling-stocks"]                  = false,
+        ["control-rolling-stock-infos-dynamic"]     = false,
 
-        -- Collector: "ak.data.DataSlotsJsonCollector",
-        --  "save-slots",
-        --  "free-slots",
+        ["runtime"]                                 = true,
+
+        -- Collector: "ak.data.SwitchJsonCollector"
+        ["switches"]                                = false,
+
+        -- Collector: "ak.data.SignalJsonCollector"
+        ["signals"]                                 = false,
+        ["waiting-on-signals"]                      = false,
+
+        -- Collector: "ak.data.StructureJsonCollector"
+        ["structures"]                              = false,
+
+        -- Collector: "ak.data.DataSlotsJsonCollector"
+        ["save-slots"]                              = false,
+        ["free-slots"]                              = false,
     },
 })
 

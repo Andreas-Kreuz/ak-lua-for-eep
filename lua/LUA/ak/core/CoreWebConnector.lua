@@ -10,7 +10,10 @@ function CoreWebConnector.registerJsonCollectors()
     local ModulesJsonCollector = require("ak.core.ModulesJsonCollector")
     ModulesJsonCollector.setRegisteredLuaModules(registeredLuaModules)
     ServerController.addJsonCollector(ModulesJsonCollector)
-    ServerController.addJsonCollector(require("ak.core.VersionJsonCollector"))
+
+    if next(ServerController.activeEntries) == nil or ServerController.activeEntries["eep-version"] then
+        ServerController.addJsonCollector(require("ak.core.VersionJsonCollector"))
+    end
 end
 
 return CoreWebConnector

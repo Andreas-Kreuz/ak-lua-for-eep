@@ -42,19 +42,40 @@ end
 
 --- Über diese Funktion kann das EEP Skript die Optionen des Moduls setzen
 -- @author Frank Buchholz
--- @options List of options { waitForServer = true/false, activeEntries = array of entry names, }
+-- @options List of options { debug = true/false, waitForServer = true/false, activeEntries = array of entry names, }
 local ServerController = require("ak.io.ServerController")
 function CoreLuaModule.setOptions(options)
-    if options.waitForServer ~= nil then
-        ServerController.checkServerStatus = options.waitForServer
+
+    -- Debug-Funktionen aktivieren
+    if options.debug ~= nil then
+        ServerController.debug = options.debug
     end
 
-    if options.activeEntries then
-        local entriesList = {}
-        for _, value in pairs(options.activeEntries) do
-            entriesList[value] = true
+    -- Jeweils vor den Datenexport prüfen, ob der EEP-Webserver aktiv ist
+    if options.waitForServer ~= nil then
+        ServerController.checkServerStatus = options.waitForServer
+        if ServerController.debug then
+            print("CoreLuaModule waitForServer: ", options.waitForServer)
         end
-        ServerController.activeEntries = entriesList
+    end
+
+    -- Auswahl der zu exportierende Datenpakete (Default: alle)
+    if options.activeEntries then
+        if next(options.activeEntries) == nil then
+            ServerController.activeEntries = {}
+            if ServerController.debug then
+                print("CoreLuaModule activeEntries: set to default (all)")
+            end
+        else
+            for key, value in pairs(options.activeEntries) do
+                if ServerController.activeEntries[key] or value then
+                    ServerController.activeEntries[key] = value
+                    if ServerController.debug then
+                        print("CoreLuaModule activeEntries: ",key," ",value)
+                    end
+                end
+            end
+        end
     end
 end
 
